@@ -157,3 +157,68 @@ def test_get_supported_entities():
     configured_phone_recognizer = PhoneRecognizer(supported_entity=entity_name)
     configured_supported_entities = configured_phone_recognizer.get_supported_entities()
     assert configured_supported_entities == [entity_name]
+
+
+@pytest.mark.parametrize(
+    "regions, text, expected_positions, expected_textual_explanations",
+    [
+        # fmt: off
+        # Control: a single national-format number is already explained correctly.
+        (["US"], "call (415) 555-0132 please",
+         ((5, 19), ),
+         ["Recognized as US region phone number, using PhoneRecognizer"]),
+        # A recognizer restricted to "US" never runs a GB matcher, so "GB" can only
+        # come from the international match. It was then reported for the US number.
+        (["US"], "+44 20 7946 0958 or (415) 555-0132 now",
+         ((0, 16), (20, 34)),
+         ["Recognized as GB region phone number, using PhoneRecognizer",
+          "Recognized as US region phone number, using PhoneRecognizer"]),
+        # The leak is not limited to the match right after the international one:
+        # every later match in the same region iteration inherits it.
+        (["US"], "(415) 555-0132 and +44 20 7946 0958 and (212) 555-0187",
+         ((0, 14), (19, 35), (40, 54)),
+         ["Recognized as US region phone number, using PhoneRecognizer",
+          "Recognized as GB region phone number, using PhoneRecognizer",
+          "Recognized as US region phone number, using PhoneRecognizer"]),
+        # Mirror image: a GB-only recognizer explains its own GB number as US.
+        (["GB"], "+1 212 555 0187 or 020 7946 0958",
+         ((0, 15), (19, 32)),
+         ["Recognized as US region phone number, using PhoneRecognizer",
+          "Recognized as GB region phone number, using PhoneRecognizer"]),
+        # Same two numbers as test_when_phone_with_textual_explanation_then_succeed,
+        # in the opposite order: which number is explained may not depend on the
+        # order they appear in.
+        (list(PhoneRecognizer.DEFAULT_SUPPORTED_REGIONS),
+         "My international number is +44 (20) 7123 4567 and my US one is (415) 555-0132",
+         ((27, 45), (63, 77)),
+         ["Recognized as GB region phone number, using PhoneRecognizer",
+          "Recognized as US region phone number, using PhoneRecognizer"]),
+        # fmt: on
+    ],
+)
+def test_when_phone_region_is_reported_then_only_for_its_own_match(
+    spacy_nlp_engine,
+    regions,
+    text,
+    expected_positions,
+    expected_textual_explanations,
+):
+    """Each result's explanation must name the region of its own match.
+
+    analyze() reassigned the ``region`` loop variable to the region of the last
+    number it could parse without a default region, so a later national-format
+    number - which cannot be parsed that way, and so falls into the
+    NumberParseException branch - was explained with the previous match's
+    region.
+    """
+    nlp_artifacts = spacy_nlp_engine.process_text(text, "en")
+    recognizer = PhoneRecognizer(supported_regions=regions)
+    results = recognizer.analyze(text, ["PHONE_NUMBER"], nlp_artifacts=nlp_artifacts)
+
+    assert len(results) == len(expected_positions)
+    for result, (start, end), explanation in zip(
+        results, expected_positions, expected_textual_explanations
+    ):
+        assert_result_with_textual_explanation(
+            result, "PHONE_NUMBER", start, end, 0.4, explanation
+        )

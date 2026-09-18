@@ -70,9 +70,16 @@ class PhoneRecognizer(LocalRecognizer):
             ):
                 try:
                     parsed_number = phonenumbers.parse(text[match.start : match.end])
-                    region = phonenumbers.region_code_for_number(parsed_number)
+                    # `region` is this match's outer loop variable. Storing the
+                    # parsed number's region back into it made every later,
+                    # national-format match in the same iteration report that
+                    # region, since those cannot be parsed without a default
+                    # region and take the NumberParseException path below.
+                    match_region = phonenumbers.region_code_for_number(parsed_number)
                     results += [
-                        self._get_recognizer_result(match, text, region, nlp_artifacts)
+                        self._get_recognizer_result(
+                            match, text, match_region, nlp_artifacts
+                        )
                     ]
                 except NumberParseException:
                     results += [
