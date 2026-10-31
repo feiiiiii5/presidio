@@ -372,6 +372,13 @@ recognizers:
     enabled: false
     country_code: kr
 
+  - name: NoFodselsnummerRecognizer
+    supported_languages:
+    - "no"
+    type: predefined
+    enabled: false
+    country_code: "no"
+
   - name: SeOrganisationsnummerRecognizer
     supported_languages:
     - sv
