@@ -483,6 +483,29 @@ def test_pattern_recognizer_recompiles_regex_on_flag_change():
     assert len(results) == 1
 
 
+def test_explicit_zero_regex_flags_override_global_flags():
+    """An explicit regex_flags=0 must override global_regex_flags (regression)."""
+    patterns = [Pattern(name="test", regex=r"test", score=0.5)]
+    recognizer = PatternRecognizer(
+        supported_entity="TEST",
+        patterns=patterns,
+        name="ZeroFlagOverride",
+        global_regex_flags=re.IGNORECASE,
+    )
+
+    # Explicit 0 disables the global IGNORECASE: differently-cased input must not match.
+    results = recognizer.analyze("TEST", ["TEST"], regex_flags=0)
+    assert len(results) == 0
+
+    # None keeps the global IGNORECASE: differently-cased input still matches.
+    results_none = recognizer.analyze("TEST", ["TEST"], regex_flags=None)
+    assert len(results_none) == 1
+
+    # Control: an explicit nonzero flag is still honored.
+    results_ignorecase = recognizer.analyze("TEST", ["TEST"], regex_flags=re.IGNORECASE)
+    assert len(results_ignorecase) == 1
+
+
 def test_pattern_recognizer_recognizer_metadata():
     """Test that recognition_metadata is properly set in results."""
     patterns = [Pattern(name="test", regex=r"\d+", score=0.5)]

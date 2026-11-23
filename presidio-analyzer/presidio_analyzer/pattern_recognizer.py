@@ -202,7 +202,7 @@ class PatternRecognizer(LocalRecognizer):
         :param flags: regex flags
         :return: A list of RecognizerResult
         """
-        flags = flags if flags else self.global_regex_flags
+        flags = flags if flags is not None else self.global_regex_flags
         results = []
         for pattern in self.patterns:
             match_start_time = datetime.datetime.now()
